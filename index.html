@@ -1,33 +1,47 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-  <title>WikiScroll</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fizyoterapi Bilgi Akışı</title>
   <style>
-    /* (stil kodları aynı kalıyor) */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; font-family: sans-serif; background: #000; color: #fff; }
+    .slide {
+      position: absolute;
+      width: 100%; height: 100%;
+      display: flex; flex-direction: column;
+      justify-content: center; align-items: center;
+      text-align: center; padding: 2rem;
+      background-size: cover; background-position: center;
+      transition: transform 0.6s ease-in-out;
+    }
+    .slide h2 {
+      background: rgba(0, 0, 0, 0.6);
+      padding: 1rem; border-radius: 8px;
+      font-size: 1.6rem;
+    }
+    .slide p {
+      margin-top: 1rem; max-width: 800px;
+      background: rgba(0, 0, 0, 0.5);
+      padding: 1rem; border-radius: 8px;
+      font-size: 1rem;
+    }
+    .nav-arrow {
+      position: fixed;
+      right: 20px;
+      background: rgba(0,0,0,0.5);
+      padding: 10px;
+      border-radius: 50%;
+      font-size: 2rem;
+      cursor: pointer;
+      z-index: 10;
+    }
+    #upArrow { top: 20px; }
+    #downArrow { bottom: 20px; }
   </style>
 </head>
 <body>
-  <div id="menuBtn">☰</div>
-  <div id="sideMenu">
-    <ul>
-      <li onclick="selectCategory('Sinema')">Sinema</li>
-      <li onclick="selectCategory('Felsefe')">Felsefe</li>
-      <li onclick="selectCategory('Siyaset')">Siyaset</li>
-      <li onclick="selectCategory('Coğrafya')">Coğrafya</li>
-      <li onclick="selectCategory('Tarih')">Tarih</li>
-      <li onclick="selectCategory('Edebiyat')">Edebiyat</li>
-      <li onclick="selectCategory('Biyoloji')">Biyoloji</li>
-      <li onclick="selectCategory('Fizik')">Fizik</li>
-      <li onclick="selectCategory('Teknoloji')">Teknoloji</li>
-      <li onclick="selectCategory('Sanat')">Sanat</li>
-      <li onclick="selectCategory('Tıp')">Tıp</li>
-      <li onclick="selectCategory('Sosyoloji')">Sosyoloji</li>
-      <li onclick="selectCategory('Psikoloji')">Psikoloji</li>
-    </ul>
-  </div>
-
   <div id="slides-container"></div>
   <div id="upArrow" class="nav-arrow">⬆️</div>
   <div id="downArrow" class="nav-arrow">⬇️</div>
@@ -35,80 +49,62 @@
   <script>
     const container = document.getElementById('slides-container');
     let currentIndex = 0;
-    let loadingNext = false;
-    let currentCategory = null;
+    let loading = false;
 
-    document.getElementById('menuBtn').onclick = () => {
-      document.getElementById('sideMenu').classList.toggle('active');
-    };
+    async function fetchTranslatedPhysioContent() {
+      const urls = [
+        "https://www.physio-pedia.com/Ankle_Stability",
+        "https://www.physio-pedia.com/Knee_Pain",
+        "https://www.physio-pedia.com/Shoulder_Impingement",
+        "https://www.physio-pedia.com/Stroke_Assessment",
+        "https://www.physio-pedia.com/Manual_Therapy",
+        "https://www.physio-pedia.com/Respiratory_Physiotherapy"
+      ];
+      const randomUrl = urls[Math.floor(Math.random() * urls.length)];
 
-    function selectCategory(cat) {
-      currentCategory = cat.toLowerCase();
-      container.innerHTML = '';
-      currentIndex = 0;
-      addNextSlide();
-      addNextSlide();
-      document.getElementById('sideMenu').classList.remove('active');
+      const proxy = "https://api.allorigins.win/get?url=" + encodeURIComponent(randomUrl);
+      const res = await fetch(proxy);
+      const data = await res.json();
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(data.contents, "text/html");
+
+      const title = doc.querySelector('h1')?.innerText || "Başlık bulunamadı";
+      const firstParagraph = doc.querySelector('p')?.innerText || "İçerik alınamadı.";
+
+      const translated = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=tr&dt=t&q=${encodeURIComponent(firstParagraph)}`);
+      const translation = await translated.json();
+      const trContent = translation[0].map(t => t[0]).join(" ");
+
+      return {
+        title: title,
+        content: trContent,
+        image: `https://source.unsplash.com/1600x900/?physiotherapy,${encodeURIComponent(title)}`
+      };
     }
 
-    async function getWikiWithImage() {
-      const baseUrl = 'https://tr.wikipedia.org/w/api.php?origin=*';
-      while (true) {
-        try {
-          const searchResponse = await fetch(`${baseUrl}&action=query&format=json&generator=random&grnnamespace=0&grnlimit=1`);
-          const searchData = await searchResponse.json();
-          const page = Object.values(searchData.query.pages)[0];
-          const pageId = page.pageid;
-
-          const detailResponse = await fetch(`${baseUrl}&action=query&prop=extracts|pageimages&format=json&pageids=${pageId}&exintro=1&explaintext=1&piprop=original`);
-          const detailData = await detailResponse.json();
-          const detailPage = detailData.query.pages[pageId];
-
-          if (!detailPage.original || !detailPage.extract) continue;
-
-          if (currentCategory && !detailPage.title.toLowerCase().includes(currentCategory)) continue;
-
-          return {
-            title: detailPage.title,
-            content: detailPage.extract,
-            image: detailPage.original.source
-          };
-        } catch (e) {
-          console.error('API hatası:', e);
-          return null;
-        }
-      }
-    }
-
-    async function addNextSlide() {
-      if (loadingNext) return;
-      loadingNext = true;
-      let data = await getWikiWithImage();
-      if (!data) {
-        loadingNext = false;
-        return;
-      }
+    async function addSlide() {
+      if (loading) return;
+      loading = true;
+      const data = await fetchTranslatedPhysioContent();
       const slide = document.createElement('div');
       slide.className = 'slide';
-      slide.style.transform = `translateY(${window.innerHeight}px)`;
       slide.style.backgroundImage = `url(${data.image})`;
+      slide.style.transform = `translateY(${window.innerHeight}px)`;
       slide.innerHTML = `
-        <h1>${data.title}</h1>
+        <h2>${data.title}</h2>
         <p>${data.content}</p>
       `;
       container.appendChild(slide);
-
       const slides = container.querySelectorAll('.slide');
       slides.forEach((s, i) => {
         s.style.transform = `translateY(${(i - currentIndex) * window.innerHeight}px)`;
       });
-
-      loadingNext = false;
+      loading = false;
     }
 
     function scrollDown() {
       currentIndex++;
-      addNextSlide();
+      addSlide();
     }
 
     function scrollUp() {
@@ -122,20 +118,13 @@
 
     document.getElementById('downArrow').onclick = scrollDown;
     document.getElementById('upArrow').onclick = scrollUp;
-
-    window.addEventListener('wheel', (e) => {
-      if (e.deltaY > 0) scrollDown();
-      else scrollUp();
-    });
-
     window.addEventListener('keydown', (e) => {
       if (e.key === 'ArrowDown') scrollDown();
       if (e.key === 'ArrowUp') scrollUp();
     });
 
-    // İlk yükleme
-    addNextSlide();
-    addNextSlide();
+    addSlide();
+    addSlide();
   </script>
 </body>
 </html>
