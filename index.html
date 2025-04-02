@@ -122,10 +122,9 @@
   }
 
   async function addSlide() {
-    if (loading) return;
+    if (loading || bufferSlides.length === 0) return;
     loading = true;
 
-    if (bufferSlides.length === 0) await preloadSlides();
     const data = bufferSlides.shift();
     preloadSlides();
 
@@ -163,7 +162,11 @@
 
   function scrollDown() {
     currentIndex++;
-    addSlide();
+    if (bufferSlides.length === 0) {
+      preloadSlides().then(() => addSlide());
+    } else {
+      addSlide();
+    }
   }
 
   function scrollUp() {
