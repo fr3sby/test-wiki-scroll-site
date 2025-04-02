@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WikiScroll</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      font-family: Arial, sans-serif;
+      background-color: #111;
+      color: #fff;
+    }
+    .slide {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      text-align: center;
+      padding: 2rem;
+      background-size: cover;
+      background-position: center;
+      transition: transform 0.6s ease-in-out;
+    }
+    .slide h1 {
+      font-size: 2rem;
+      background: rgba(0,0,0,0.5);
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+    }
+    .slide p {
+      font-size: 1rem;
+      max-width: 700px;
+      background: rgba(0,0,0,0.5);
+      padding: 1rem;
+      border-radius: 8px;
+      margin-top: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <div id="slides-container"></div>
+
+  <script>
+    const container = document.getElementById('slides-container');
+    let currentIndex = 0;
+    let loadingNext = false;
+
+    async function getWikiWithImage() {
+      const categories = ['Science', 'Medicine', 'Culture'];
+      const randomCategory = categories[Math.floor(Math.random() * categories.length)];
+      const searchResponse = await fetch(`https://en.wikipedia.org/w/api.php?action=query&format=json&generator=random&grnnamespace=0&grnlimit=1&origin=*`);
+      const searchData = await searchResponse.json();
+      const page = Object.values(searchData.query.pages)[0];
+      const pageId = page.pageid;
+
+      const detailResponse = await fetch(`https://en.wikipedia.org/w/api.php?action=query&prop=extracts|pageimages&format=json&pageids=${pageId}&exintro=1&explaintext=1&piprop=original&origin=*`);
+      const detailData = await detailResponse.json();
+      const detailPage = detailData.query.pages[pageId];
+
+      if (!detailPage.original || !detailPage.extract) return null;
+
+      return {
+        title: detailPage.title,
+        content: detailPage.extract,
+        image: detailPage.original.source
+      };
+    }
+
+    async function addNextSlide() {
+      if (loadingNext) return;
+      loadingNext = true;
+      let data = null;
+      while (!data) {
+        data = await getWikiWithImage();
+      }
+      const slide = document.createElement('div');
+      slide.className = 'slide';
+      slide.style.transform = `translateY(${window.innerHeight}px)`;
+      slide.style.backgroundImage = `url(${data.image})`;
+      slide.innerHTML = `
+        <h1>${data.title}</h1>
+        <p>${data.content}</p>
+      `;
+      container.appendChild(slide);
+
+      const slides = container.querySelectorAll('.slide');
+      slides.forEach((s, i) => {
+        s.style.transform = `translateY(${(i - currentIndex) * window.innerHeight}px)`;
+      });
+
+      loadingNext = false;
+    }
+
+    window.addEventListener('wheel', async (e) => {
+      if (e.deltaY > 0 && !loadingNext) {
+        currentIndex++;
+        await addNextSlide();
+      }
+    });
+
+    // Initial load
+    addNextSlide();
+    addNextSlide(); // preload second
+  </script>
+</body>
+</html>
