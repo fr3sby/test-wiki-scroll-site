@@ -52,91 +52,97 @@
   <div id="downArrow" class="nav-arrow">⬇️</div>
 
   <script>
-    const container = document.getElementById('slides-container');
-    let currentIndex = 0;
-    let loading = false;
+  const container = document.getElementById('slides-container');
+  let currentIndex = 0;
+  let loading = false;
 
-    const keywords = [
-      'kas', 'kası', 'eklem', 'ligament', 'bağ', 'kıkırdak', 'menisküs', 'omurga',
-      'kas grubu', 'fizyoterapi', 'rehabilitasyon', 'manuel terapi',
-      'egzersiz', 'germe', 'dolaşım', 'ağrı', 'hareket sistemi', 'kinetik', 'propriyosepsiyon'
-    ];
+  const categories = [
+    "Kategori:Kaslar", 
+    "Kategori:Eklem_anatomisi",
+    "Kategori:Fizyoterapi",
+    "Kategori:İnsan_iskelet_sistemi",
+    "Kategori:Kas-iskelet_sistemi_hastalıkları",
+    "Kategori:Anatomi",
+    "Kategori:Rehabilitasyon"
+  ];
 
-    async function fetchWikiWithImage() {
-      const baseUrl = 'https://tr.wikipedia.org/w/api.php?origin=*';
-      while (true) {
-        try {
-          const response = await fetch(`${baseUrl}&action=query&format=json&generator=random&grnnamespace=0&grnlimit=1`);
-          const data = await response.json();
-          const page = Object.values(data.query.pages)[0];
-          const pageId = page.pageid;
+  async function getTitlesFromCategory(category) {
+    const apiUrl = `https://tr.wikipedia.org/w/api.php?origin=*&action=query&format=json&list=categorymembers&cmtitle=${encodeURIComponent(category)}&cmlimit=500`;
+    const res = await fetch(apiUrl);
+    const data = await res.json();
+    return data.query.categorymembers
+      .filter(item => item.ns === 0)
+      .map(item => item.title);
+  }
 
-          const detailResponse = await fetch(`${baseUrl}&action=query&prop=extracts|pageimages&format=json&pageids=${pageId}&exintro=1&explaintext=1&piprop=original`);
-          const detailData = await detailResponse.json();
-          const detailPage = detailData.query.pages[pageId];
+  async function fetchWikiPageWithImage(title) {
+    const baseUrl = 'https://tr.wikipedia.org/w/api.php?origin=*';
+    const response = await fetch(`${baseUrl}&action=query&format=json&titles=${encodeURIComponent(title)}&prop=extracts|pageimages&exintro=1&explaintext=1&piprop=original`);
+    const data = await response.json();
+    const page = Object.values(data.query.pages)[0];
 
-          if (!detailPage.original || !detailPage.extract) continue;
+    if (!page || !page.original || !page.extract) return null;
 
-          const text = `${detailPage.title} ${detailPage.extract}`.toLowerCase();
-          if (!keywords.some(kw => text.includes(kw))) continue;
+    return {
+      title: page.title,
+      content: page.extract,
+      image: page.original.source,
+      link: `https://tr.wikipedia.org/?curid=${page.pageid}`
+    };
+  }
 
-          return {
-            title: detailPage.title,
-            content: detailPage.extract,
-            image: detailPage.original.source,
-            link: `https://tr.wikipedia.org/?curid=${pageId}`
-          };
-        } catch (e) {
-          console.error('Veri çekilemedi:', e);
-          return null;
-        }
-      }
+  async function addSlide() {
+    if (loading) return;
+    loading = true;
+    let data = null;
+
+    while (!data) {
+      const randomCategory = categories[Math.floor(Math.random() * categories.length)];
+      const titles = await getTitlesFromCategory(randomCategory);
+      const randomTitle = titles[Math.floor(Math.random() * titles.length)];
+      data = await fetchWikiPageWithImage(randomTitle);
     }
 
-    async function addSlide() {
-      if (loading) return;
-      loading = true;
-      const data = await fetchWikiWithImage();
-      const slide = document.createElement('div');
-      slide.className = 'slide';
-      slide.style.backgroundImage = `url(${data.image})`;
-      slide.style.transform = `translateY(${window.innerHeight}px)`;
-      slide.innerHTML = `
-        <h2>${data.title}</h2>
-        <p>${data.content}</p>
-        <a href="${data.link}" target="_blank">Daha fazla bilgi</a>
-      `;
-      container.appendChild(slide);
-      const slides = container.querySelectorAll('.slide');
-      slides.forEach((s, i) => {
-        s.style.transform = `translateY(${(i - currentIndex) * window.innerHeight}px)`;
-      });
-      loading = false;
-    }
-
-    function scrollDown() {
-      currentIndex++;
-      addSlide();
-    }
-
-    function scrollUp() {
-      if (currentIndex === 0) return;
-      currentIndex--;
-      const slides = container.querySelectorAll('.slide');
-      slides.forEach((s, i) => {
-        s.style.transform = `translateY(${(i - currentIndex) * window.innerHeight}px)`;
-      });
-    }
-
-    document.getElementById('downArrow').onclick = scrollDown;
-    document.getElementById('upArrow').onclick = scrollUp;
-    window.addEventListener('keydown', (e) => {
-      if (e.key === 'ArrowDown') scrollDown();
-      if (e.key === 'ArrowUp') scrollUp();
+    const slide = document.createElement('div');
+    slide.className = 'slide';
+    slide.style.backgroundImage = `url(${data.image})`;
+    slide.style.transform = `translateY(${window.innerHeight}px)`;
+    slide.innerHTML = `
+      <h2>${data.title}</h2>
+      <p>${data.content}</p>
+      <a href="${data.link}" target="_blank">Daha fazla bilgi</a>
+    `;
+    container.appendChild(slide);
+    const slides = container.querySelectorAll('.slide');
+    slides.forEach((s, i) => {
+      s.style.transform = `translateY(${(i - currentIndex) * window.innerHeight}px)`;
     });
+    loading = false;
+  }
 
+  function scrollDown() {
+    currentIndex++;
     addSlide();
-    addSlide();
-  </script>
+  }
+
+  function scrollUp() {
+    if (currentIndex === 0) return;
+    currentIndex--;
+    const slides = container.querySelectorAll('.slide');
+    slides.forEach((s, i) => {
+      s.style.transform = `translateY(${(i - currentIndex) * window.innerHeight}px)`;
+    });
+  }
+
+  document.getElementById('downArrow').onclick = scrollDown;
+  document.getElementById('upArrow').onclick = scrollUp;
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown') scrollDown();
+    if (e.key === 'ArrowUp') scrollUp();
+  });
+
+  addSlide();
+  addSlide();
+</script>
 </body>
 </html>
