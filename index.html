@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="tr">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -45,29 +45,118 @@
       border-radius: 8px;
       margin-top: 1rem;
     }
+    .nav-arrow {
+      position: fixed;
+      right: 20px;
+      font-size: 2rem;
+      z-index: 1000;
+      cursor: pointer;
+      background: rgba(0,0,0,0.5);
+      border-radius: 50%;
+      padding: 10px;
+      transition: background 0.3s;
+    }
+    .nav-arrow:hover {
+      background: rgba(255,255,255,0.2);
+    }
+    #upArrow { top: 20px; }
+    #downArrow { bottom: 20px; }
+    #menuBtn {
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      z-index: 1001;
+      font-size: 2rem;
+      background: rgba(0,0,0,0.5);
+      padding: 10px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    #sideMenu {
+      position: fixed;
+      top: 0;
+      left: -250px;
+      width: 250px;
+      height: 100%;
+      background-color: rgba(0,0,0,0.9);
+      padding: 20px;
+      overflow-y: auto;
+      z-index: 1002;
+      transition: left 0.3s;
+    }
+    #sideMenu.active {
+      left: 0;
+    }
+    #sideMenu ul {
+      list-style: none;
+      padding: 0;
+    }
+    #sideMenu ul li {
+      margin-bottom: 1rem;
+      cursor: pointer;
+      color: #fff;
+    }
+    #sideMenu ul li:hover {
+      color: #aaa;
+    }
   </style>
 </head>
 <body>
+  <div id="menuBtn">☰</div>
+  <div id="sideMenu">
+    <ul>
+      <li onclick="selectCategory('Sinema')">Sinema</li>
+      <li onclick="selectCategory('Felsefe')">Felsefe</li>
+      <li onclick="selectCategory('Siyaset')">Siyaset</li>
+      <li onclick="selectCategory('Coğrafya')">Coğrafya</li>
+      <li onclick="selectCategory('Tarih')">Tarih</li>
+      <li onclick="selectCategory('Edebiyat')">Edebiyat</li>
+      <li onclick="selectCategory('Biyoloji')">Biyoloji</li>
+      <li onclick="selectCategory('Fizik')">Fizik</li>
+      <li onclick="selectCategory('Teknoloji')">Teknoloji</li>
+      <li onclick="selectCategory('Sanat')">Sanat</li>
+      <li onclick="selectCategory('Tıp')">Tıp</li>
+      <li onclick="selectCategory('Sosyoloji')">Sosyoloji</li>
+      <li onclick="selectCategory('Psikoloji')">Psikoloji</li>
+    </ul>
+  </div>
+
   <div id="slides-container"></div>
+  <div id="upArrow" class="nav-arrow">⬆️</div>
+  <div id="downArrow" class="nav-arrow">⬇️</div>
 
   <script>
     const container = document.getElementById('slides-container');
     let currentIndex = 0;
     let loadingNext = false;
+    let currentCategory = null;
+
+    document.getElementById('menuBtn').onclick = () => {
+      document.getElementById('sideMenu').classList.toggle('active');
+    };
+
+    function selectCategory(cat) {
+      currentCategory = cat;
+      container.innerHTML = '';
+      currentIndex = 0;
+      addNextSlide();
+      addNextSlide();
+      document.getElementById('sideMenu').classList.remove('active');
+    }
 
     async function getWikiWithImage() {
-      const categories = ['Science', 'Medicine', 'Culture'];
-      const randomCategory = categories[Math.floor(Math.random() * categories.length)];
-      const searchResponse = await fetch(`https://en.wikipedia.org/w/api.php?action=query&format=json&generator=random&grnnamespace=0&grnlimit=1&origin=*`);
+      const baseUrl = 'https://tr.wikipedia.org/w/api.php?origin=*';
+      const category = currentCategory || ['Bilim', 'Kültür', 'Tıp'][Math.floor(Math.random() * 3)];
+      const searchResponse = await fetch(`${baseUrl}&action=query&format=json&generator=random&grnnamespace=0&grnlimit=1`);
       const searchData = await searchResponse.json();
       const page = Object.values(searchData.query.pages)[0];
       const pageId = page.pageid;
 
-      const detailResponse = await fetch(`https://en.wikipedia.org/w/api.php?action=query&prop=extracts|pageimages&format=json&pageids=${pageId}&exintro=1&explaintext=1&piprop=original&origin=*`);
+      const detailResponse = await fetch(`${baseUrl}&action=query&prop=extracts|pageimages&format=json&pageids=${pageId}&exintro=1&explaintext=1&piprop=original`);
       const detailData = await detailResponse.json();
       const detailPage = detailData.query.pages[pageId];
 
-      if (!detailPage.original || !detailPage.extract) return null;
+      if (!detailPage.original || !detailPage.extract || (currentCategory && !detailPage.title.toLowerCase().includes(currentCategory.toLowerCase()))) return null;
 
       return {
         title: detailPage.title,
@@ -76,7 +165,7 @@
       };
     }
 
-    async function addNextSlide() {
+    async function addNextSlide(reverse = false) {
       if (loadingNext) return;
       loadingNext = true;
       let data = null;
@@ -101,16 +190,36 @@
       loadingNext = false;
     }
 
-    window.addEventListener('wheel', async (e) => {
-      if (e.deltaY > 0 && !loadingNext) {
-        currentIndex++;
-        await addNextSlide();
-      }
+    function scrollDown() {
+      currentIndex++;
+      addNextSlide();
+    }
+
+    function scrollUp() {
+      if (currentIndex === 0) return;
+      currentIndex--;
+      const slides = container.querySelectorAll('.slide');
+      slides.forEach((s, i) => {
+        s.style.transform = `translateY(${(i - currentIndex) * window.innerHeight}px)`;
+      });
+    }
+
+    document.getElementById('downArrow').onclick = scrollDown;
+    document.getElementById('upArrow').onclick = scrollUp;
+
+    window.addEventListener('wheel', (e) => {
+      if (e.deltaY > 0) scrollDown();
+      else scrollUp();
     });
 
-    // Initial load
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowDown') scrollDown();
+      if (e.key === 'ArrowUp') scrollUp();
+    });
+
+    // İlk yükleme
     addNextSlide();
-    addNextSlide(); // preload second
+    addNextSlide();
   </script>
 </body>
 </html>
